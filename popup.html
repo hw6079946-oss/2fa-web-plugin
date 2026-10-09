@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>2FA Authenticator</title>
+  <link rel="stylesheet" href="popup.css" />
+</head>
+<body>
+  <!-- 登录屏幕 -->
+  <div id="auth-screen" class="screen active">
+    <div class="panel auth-panel">
+      <div class="brand">
+        <div class="brand-icon">🔐</div>
+        <h1>2FA Web</h1>
+      </div>
+      <p class="subtitle">请输入主密码解锁验证码</p>
+      <form id="unlock-form">
+        <label class="field-label" for="master-password">主密码</label>
+        <input id="master-password" type="password" placeholder="至少 6 位" />
+        <button type="submit" class="primary-btn">解锁</button>
+      </form>
+      <p id="auth-error" class="error-text" aria-live="polite"></p>
+      <div class="auth-links">
+        <button type="button" id="first-time-btn" class="link-btn">首次使用？设置密码</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 主应用屏幕 -->
+  <div id="app-screen" class="screen">
+    <div class="app-header">
+      <div class="header-title-wrap">
+        <div class="header-icon">🔐</div>
+        <span>2FA Web</span>
+      </div>
+      <div class="header-actions">
+        <button id="add-account-btn" class="icon-btn" title="添加账户">➕</button>
+        <button id="settings-btn" class="icon-btn" title="设置">⚙️</button>
+        <button id="logout-btn" class="icon-btn danger" title="退出">🚪</button>
+      </div>
+    </div>
+
+    <div class="toolbar">
+      <input id="search-input" type="search" placeholder="搜索账户..." class="search-input" />
+    </div>
+
+    <div id="account-list" class="account-list"></div>
+    <div id="empty-state" class="empty-state hidden">
+      <div class="empty-icon">📭</div>
+      <h3>暂无验证码</h3>
+      <p>点击右上角 ➕ 号添加你的 TOTP 账户</p>
+    </div>
+  </div>
+
+  <!-- 模态框 -->
+  <div id="modal-overlay" class="modal-overlay hidden">
+    <div class="modal">
+      <div class="modal-header">
+        <h2 id="modal-title">添加账户</h2>
+        <button id="close-modal-btn" class="close-btn" aria-label="关闭">×</button>
+      </div>
+      <div class="modal-body">
+        <form id="account-form">
+          <div class="form-section">
+            <label class="form-label" for="issuer">服务商 (Issuer)</label>
+            <input id="issuer" class="form-input" type="text" placeholder="GitHub, Google, AWS..." />
+          </div>
+
+          <div class="form-section">
+            <label class="form-label" for="username">用户名</label>
+            <input id="username" class="form-input" type="text" placeholder="your-email@example.com" />
+          </div>
+
+          <div class="form-section">
+            <label class="form-label" for="secret">密钥 (Secret)</label>
+            <textarea id="secret" class="form-input mono" placeholder="JBSWY3DPEHPK3PXP" rows="2"></textarea>
+            <p class="form-hint">Base32 编码的 TOTP 密钥</p>
+          </div>
+
+          <div class="form-section">
+            <label class="form-label" for="uri">或粘贴 otpauth:// URI</label>
+            <input id="uri" class="form-input mono" type="text" placeholder="otpauth://totp/..." />
+            <p class="form-hint">会自动解析出所有字段</p>
+          </div>
+
+          <div class="form-row">
+            <div class="form-section">
+              <label class="form-label" for="digits">位数</label>
+              <select id="digits" class="form-input">
+                <option value="6" selected>6</option>
+                <option value="8">8</option>
+              </select>
+            </div>
+            <div class="form-section">
+              <label class="form-label" for="period">周期</label>
+              <select id="period" class="form-input">
+                <option value="30" selected>30 秒</option>
+                <option value="60">60 秒</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-section">
+            <label class="form-label" for="algorithm">算法</label>
+            <select id="algorithm" class="form-input">
+              <option value="SHA1" selected>SHA1</option>
+              <option value="SHA256">SHA256</option>
+              <option value="SHA512">SHA512</option>
+            </select>
+          </div>
+
+          <div class="form-section">
+            <label class="form-label" for="note">备注</label>
+            <textarea id="note" class="form-input" placeholder="可选的备注信息" rows="2"></textarea>
+          </div>
+
+          <div class="modal-footer">
+            <button type="button" id="cancel-btn" class="secondary-btn">取消</button>
+            <button type="submit" class="primary-btn">保存</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- 设置模态框 -->
+  <div id="settings-modal" class="modal-overlay hidden">
+    <div class="modal">
+      <div class="modal-header">
+        <h2>设置</h2>
+        <button class="close-settings-btn close-btn" aria-label="关闭">×</button>
+      </div>
+      <div class="modal-body">
+        <div class="settings-section">
+          <h3>数据管理</h3>
+          <button id="export-btn" class="secondary-btn full-width">导出数据</button>
+          <button id="import-btn" class="secondary-btn full-width">导入数据</button>
+          <input id="import-file" type="file" accept=".json" style="display:none;" />
+          <button id="delete-all-btn" class="danger-btn full-width">删除所有数据</button>
+        </div>
+        <div class="settings-section">
+          <p class="settings-help">💡 定期备份你的验证码数据。数据仅存储在你的浏览器中，不会上传到任何服务器。</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="crypto-utils.js"></script>
+  <script src="popup.js"></script>
+</body>
+</html>
